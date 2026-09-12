@@ -1,0 +1,30 @@
+@page
+@model ProposalEval.Pages.Vendors.CreateModel
+@{
+    ViewData["Title"] = "Add vendor";
+}
+
+<p><a asp-page="/Rfqs/Details" asp-route-id="@Model.RfqId">← @Model.RfqNumber</a></p>
+<h1 class="page-title">Add vendor</h1>
+<p class="lede">Create the profile first, then load the proposal and other evidence on the next page.</p>
+
+<div class="card-block">
+    <form method="post">
+        <input type="hidden" asp-for="RfqId" />
+        <div class="mb-3">
+            <label asp-for="Input.Name" class="form-label">Company name</label>
+            <input asp-for="Input.Name" class="form-control" />
+            <span asp-validation-for="Input.Name" class="text-danger"></span>
+        </div>
+        <div class="mb-3">
+            <label asp-for="Input.ExternalProjectId" class="form-label">Project ID</label>
+            <input asp-for="Input.ExternalProjectId" class="form-control" placeholder="228711" />
+            <span asp-validation-for="Input.ExternalProjectId" class="text-danger"></span>
+        </div>
+        <button type="submit" class="btn btn-navy">Create profile</button>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

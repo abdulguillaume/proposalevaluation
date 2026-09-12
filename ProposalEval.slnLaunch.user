@@ -1,0 +1,17 @@
+[
+  {
+    "Name": "New Profile",
+    "Projects": [
+      {
+        "Path": "ProposalEval\\ProposalEval.csproj",
+        "Action": "Start",
+        "DebugTarget": "http"
+      },
+      {
+        "Path": "ProposalEval.AgentHost\\ProposalEval.AgentHost.csproj",
+        "Action": "Start",
+        "DebugTarget": "http"
+      }
+    ]
+  }
+]

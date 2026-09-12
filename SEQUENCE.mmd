@@ -1,0 +1,97 @@
+sequenceDiagram
+    autonumber
+    actor Staff
+    participant App as Application
+    participant Blob as Azure Blob
+    participant Host as Agent host
+    participant MCP as MCP tools
+    participant Model as Model
+    actor Evaluator
+
+    rect rgb(241,246,250)
+    Note over Staff,Blob: 1. Intake — RFQ, TOR, vendors, evidence
+    Staff->>App: Create RFQ (number, title)
+    App-->>Staff: RFQ Draft
+    Staff->>App: Load TOR and scoring strategy
+    App->>Blob: Save under rfq-{id}/
+    App-->>Staff: TOR and strategy loaded
+    Staff->>App: Add vendor (name, project id)
+    Staff->>App: Load vendor documents
+    App->>Blob: Save under {vendor}/{project id}/
+    App-->>Staff: Profile ready (present vs missing)
+    end
+
+    rect rgb(232,244,239)
+    Note over Staff,Model: 2. Start evaluation — one Summarize job per vendor
+    Staff->>App: Start evaluation
+    App->>App: Create run + Summarize jobs (Queued)
+    App-->>Staff: The agent has started working
+    loop Each vendor
+        App->>Host: POST /api/jobs/{id}/run (summary)
+        Host->>App: GET prepared summary prompt
+        App-->>Host: Filled prompt (ids, file names, no StorageKey)
+        Host->>MCP: Start stdio tools
+        Host->>Model: Prompt + MCP tools
+        loop Until summary is saved
+            Model->>MCP: read_document(jobId, documentId)
+            MCP->>App: GET document text
+            App->>Blob: Fetch bytes by StorageKey
+            Blob-->>App: File bytes
+            App-->>MCP: Extracted text
+            MCP-->>Model: Evidence (not instructions)
+        end
+        Model->>MCP: save_summary(jobId, brief)
+        MCP->>App: POST summary
+        App->>App: Store draft summary, wait for review
+        App-->>Host: Saved
+        Host-->>App: Run completed
+    end
+    end
+
+    rect rgb(252,246,232)
+    Note over Evaluator,App: 3. Summary gate — per vendor
+    loop Each vendor summary
+        Evaluator->>App: Open summary
+        alt Accept
+            Evaluator->>App: Accept summary
+            App->>App: Vendor eligible to score
+        else Reject
+            Evaluator->>App: Reject + reason
+            App->>App: No scores, not in ranking
+            Note over App,Evaluator: Fix profile and re-summarize, re-run summary, or leave out
+        end
+    end
+    end
+
+    rect rgb(236,240,252)
+    Note over App,Model: 4. Scoring — accepted vendors only
+    loop Each accepted vendor
+        App->>Host: POST /api/jobs/{id}/run (score)
+        Host->>App: GET prepared scoring prompt
+        App-->>Host: Prompt + accepted summary + criteria
+        Host->>MCP: Start stdio tools
+        Host->>Model: Prompt + MCP tools
+        loop Until scores are saved
+            Model->>MCP: read_document / get_accepted_summary / list_criteria
+            MCP->>App: Job-scoped APIs
+            App-->>MCP: Text and criteria (no StorageKey)
+            MCP-->>Model: Evidence
+        end
+        Model->>MCP: save_scores (0–1 + justification per criterion)
+        MCP->>App: POST scores
+        App->>App: Compute TWS, pass/fail, ranking
+        App-->>Host: Saved
+        Host-->>App: Run completed
+    end
+    end
+
+    rect rgb(247,240,250)
+    Note over Evaluator,App: 5. Review and approve
+    Evaluator->>App: Open ranked list, TWS, notes
+    opt Edit a score
+        Evaluator->>App: Change 0–1 score
+        App->>App: Recalculate TWS and ranking
+    end
+    Evaluator->>App: Approve final result
+    App-->>Evaluator: Draft becomes approved (committee remains accountable)
+    end

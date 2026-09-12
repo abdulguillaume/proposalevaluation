@@ -1,0 +1,110 @@
+:root {
+    --navy: #0b3d5c;
+    --navy-dark: #082c42;
+    --ink: #1c2430;
+    --muted: #5c6b7a;
+    --line: #d5dde4;
+    --paper: #f4f7f9;
+    --ok: #1b7f5a;
+    --live: #0b6e99;
+    --wait: #9a6b12;
+    --bad: #a12b2b;
+}
+
+html, body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Segoe UI", Tahoma, sans-serif;
+}
+
+.app-header {
+    background: var(--navy);
+    color: #fff;
+    padding: 0.85rem 0;
+}
+
+.app-header a {
+    color: #fff;
+    text-decoration: none;
+    margin-left: 1rem;
+}
+
+.app-header .brand {
+    font-weight: 650;
+    letter-spacing: 0.02em;
+    margin-left: 0;
+}
+
+.app-main {
+    padding: 1.5rem 0 3rem;
+}
+
+.storage-note {
+    color: var(--muted);
+    font-size: 0.85rem;
+    margin-bottom: 1.25rem;
+}
+
+.card-block {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 1.15rem 1.25rem;
+    margin-bottom: 1.25rem;
+}
+
+.page-title {
+    margin: 0 0 0.25rem;
+}
+
+.lede {
+    color: var(--muted);
+    margin-bottom: 1.25rem;
+}
+
+.badge-status {
+    display: inline-block;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+.badge-draft { background: #e8eef2; color: #3a4a58; }
+.badge-ready { background: #dceee4; color: var(--ok); }
+.badge-live { background: #d7eef6; color: var(--live); }
+.badge-wait { background: #f6ead2; color: var(--wait); }
+.badge-ok { background: #dceee4; color: var(--ok); }
+.badge-bad { background: #f6dcdc; color: var(--bad); }
+
+.btn-navy {
+    background: var(--navy);
+    color: #fff;
+    border: none;
+}
+
+.btn-navy:hover { background: var(--navy-dark); color: #fff; }
+
+.banner-live {
+    background: #e7f4fa;
+    border: 1px solid #b7d8e8;
+    color: var(--navy);
+    padding: 0.9rem 1rem;
+    border-radius: 8px;
+    margin-bottom: 1.25rem;
+}
+
+.checklist {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.checklist li {
+    padding: 0.2rem 0;
+}
+
+.missing { color: var(--bad); }
+.present { color: var(--ok); }
+
+table.table { margin-bottom: 0; }

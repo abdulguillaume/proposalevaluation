@@ -1,0 +1,22 @@
+@page "{id:int}"
+@model ProposalEval.Pages.Jobs.PromptModel
+@{
+    ViewData["Title"] = Model.Prompt is null ? "Prepared prompt" : $"{Model.Prompt.Agent} prompt";
+}
+
+@if (Model.RfqId > 0)
+{
+    <p><a asp-page="/Rfqs/Details" asp-route-id="@Model.RfqId">← RFQ</a></p>
+}
+
+@if (!string.IsNullOrWhiteSpace(Model.Error) || Model.Prompt is null)
+{
+    <h1 class="page-title">Prepared prompt</h1>
+    <div class="alert alert-danger">@(Model.Error ?? "Prompt is not available.")</div>
+}
+else
+{
+    <h1 class="page-title">@Model.Prompt.Agent prompt</h1>
+    <p class="lede">Job #@Model.Prompt.JobId · @Model.Prompt.JobType. Staff do not edit this text; the app fills it from the job.</p>
+    <pre class="card-block" style="white-space: pre-wrap;">@Model.Prompt.Prompt</pre>
+}

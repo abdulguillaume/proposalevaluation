@@ -1,0 +1,40 @@
+{
+  "openapi": "3.0.4",
+  "info": {
+    "title": "Proposal evaluation agent host",
+    "version": "v1"
+  },
+  "paths": {
+    "/api/jobs/{id}/run": {
+      "post": {
+        "tags": [
+          "Jobs"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "agent",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    }
+  },
+  "components": { }
+}

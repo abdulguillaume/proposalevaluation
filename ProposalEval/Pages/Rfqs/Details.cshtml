@@ -1,0 +1,196 @@
+@page "{id:int}"
+@model ProposalEval.Pages.Rfqs.DetailsModel
+@{
+    ViewData["Title"] = Model.Rfq.Number;
+    var status = StatusLabels.Rfq(Model.Rfq.Status);
+    var tor = Model.Rfq.Documents.FirstOrDefault(d => d.Kind == RfqDocumentKind.Tor);
+    var strategy = Model.Rfq.Documents.FirstOrDefault(d => d.Kind == RfqDocumentKind.ScoringStrategy);
+}
+
+<p><a asp-page="/Index">← RFQs</a></p>
+<h1 class="page-title">@Model.Rfq.Number</h1>
+<p class="lede">
+    @Model.Rfq.Title
+    <span class="badge-status @StatusLabels.Badge(status)">@status</span>
+</p>
+@if (!string.IsNullOrWhiteSpace(Model.Rfq.Description))
+{
+    <p>@Model.Rfq.Description</p>
+}
+
+@if (!string.IsNullOrWhiteSpace(Model.Flash))
+{
+    <div class="banner-live">@Model.Flash</div>
+}
+@if (!string.IsNullOrWhiteSpace(Model.Error))
+{
+    <div class="alert alert-danger">@Model.Error</div>
+}
+
+@if (Model.LatestRun is not null)
+{
+    var runLabel = StatusLabels.Run(Model.LatestRun.Status);
+    <div class="banner-live d-flex justify-content-between align-items-start gap-3">
+        <div>
+            <strong>@Model.LatestRun.StatusMessage</strong>
+            <div>Run #@Model.LatestRun.Id · <span class="badge-status @StatusLabels.Badge(runLabel)">@runLabel</span></div>
+        </div>
+        <a class="btn btn-sm btn-navy" asp-page="/Rfqs/Details" asp-route-id="@Model.Rfq.Id">Refresh</a>
+    </div>
+}
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card-block">
+            <h2 class="h5">TOR</h2>
+            @if (tor is not null)
+            {
+                <p class="present mb-2">Loaded: <a href="@BlobNaming.PublicUrl(tor.StorageKey)">@BlobNaming.OriginalName(tor.FileName)</a></p>
+            }
+            else
+            {
+                <p class="missing">Not loaded.</p>
+            }
+            <form method="post" asp-page-handler="Upload" enctype="multipart/form-data">
+                <input type="hidden" name="kind" value="@RfqDocumentKind.Tor" />
+                <input type="file" name="file" class="form-control mb-2" />
+                <button class="btn btn-sm btn-navy" type="submit">Load TOR</button>
+            </form>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card-block">
+            <h2 class="h5">Scoring strategy</h2>
+            @if (strategy is not null)
+            {
+                <p class="present mb-2">Loaded: <a href="@BlobNaming.PublicUrl(strategy.StorageKey)">@BlobNaming.OriginalName(strategy.FileName)</a></p>
+            }
+            else
+            {
+                <p class="missing">Not loaded.</p>
+            }
+            <form method="post" asp-page-handler="Upload" enctype="multipart/form-data">
+                <input type="hidden" name="kind" value="@RfqDocumentKind.ScoringStrategy" />
+                <input type="file" name="file" class="form-control mb-2" />
+                <button class="btn btn-sm btn-navy" type="submit">Load scoring strategy</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="card-block">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="h5 mb-0">Vendor profiles</h2>
+        <a class="btn btn-sm btn-navy" asp-page="/Vendors/Create" asp-route-rfqId="@Model.Rfq.Id">Add vendor</a>
+    </div>
+    @if (Model.Rfq.Vendors.Count == 0)
+    {
+        <p class="mb-0">No vendors yet. Add a profile, then load their proposal and other documents.</p>
+    }
+    else
+    {
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Vendor</th>
+                    <th>Project ID</th>
+                    <th>Documents</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var vendor in Model.Rfq.Vendors.OrderBy(v => v.Name))
+            {
+                var vLabel = StatusLabels.Vendor(vendor.Status);
+                <tr>
+                    <td><a asp-page="/Vendors/Details" asp-route-id="@vendor.Id">@vendor.Name</a></td>
+                    <td>@(vendor.ExternalProjectId ?? "—")</td>
+                    <td>@vendor.Documents.Count</td>
+                    <td><span class="badge-status @StatusLabels.Badge(vLabel)">@vLabel</span></td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    }
+</div>
+
+<div class="card-block">
+    <h2 class="h5">Request evaluation</h2>
+    <p>Evaluation does not start until you ask. The summary agent will then read the TOR, scoring strategy, and each vendor’s files from these profiles.</p>
+    <ul class="checklist mb-3">
+        <li class="@(Model.HasTor ? "present" : "missing")">@(Model.HasTor ? "TOR is loaded" : "TOR is missing")</li>
+        <li class="@(Model.HasStrategy ? "present" : "missing")">@(Model.HasStrategy ? "Scoring strategy is loaded" : "Scoring strategy is missing")</li>
+        <li class="@(Model.Rfq.Vendors.Count > 0 ? "present" : "missing")">@(Model.Rfq.Vendors.Count > 0 ? $"{Model.Rfq.Vendors.Count} vendor(s) added" : "No vendor profiles")</li>
+    </ul>
+    <form method="post" asp-page-handler="Evaluate">
+        @if (Model.CanEvaluate)
+        {
+            <button class="btn btn-navy" type="submit">Start evaluation</button>
+        }
+        else if (Model.LatestRun is not null)
+        {
+            <button class="btn btn-navy" type="button" disabled>Evaluation already started</button>
+        }
+        else
+        {
+            <button class="btn btn-navy" type="button" disabled>Start evaluation</button>
+        }
+    </form>
+</div>
+
+@if (Model.LatestRun is not null)
+{
+    <div class="card-block">
+        <div class="d-flex justify-content-between align-items-center mb-2 gap-2">
+            <h2 class="h5 mb-0">Jobs</h2>
+            <div class="d-flex gap-2">
+                @if (Model.CanRetryFailed)
+                {
+                    <form method="post" asp-page-handler="Retry">
+                        <button class="btn btn-sm btn-navy" type="submit">Retry failed jobs</button>
+                    </form>
+                }
+                <a class="btn btn-sm btn-navy" asp-page="/Rfqs/Details" asp-route-id="@Model.Rfq.Id">Refresh</a>
+            </div>
+        </div>
+        <p class="lede">Agents write status here when they finish. Retry starts a new job and leaves the failed row in this list. Refresh to see new status.</p>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Job</th>
+                    <th>Vendor</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Message</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var job in Model.LatestRun.Jobs.OrderBy(j => j.Id))
+            {
+                var jLabel = StatusLabels.Job(job.Status);
+                <tr>
+                    <td>@job.Id</td>
+                    <td>@(job.Vendor?.Name ?? "—")</td>
+                    <td>@job.JobType</td>
+                    <td><span class="badge-status @StatusLabels.Badge(jLabel)">@jLabel</span></td>
+                    <td>@job.StatusMessage</td>
+                    <td class="text-nowrap">
+                        @if (job.VendorId is not null)
+                        {
+                            <a asp-page="/Jobs/Prompt" asp-route-id="@job.Id" asp-route-rfqId="@Model.Rfq.Id">Prompt</a>
+                        }
+                        @if (EvaluationService.IsRetryable(Model.LatestRun, job))
+                        {
+                            <form method="post" asp-page-handler="Retry" class="d-inline ms-2">
+                                <input type="hidden" name="jobId" value="@job.Id" />
+                                <button class="btn btn-sm btn-navy" type="submit">Retry</button>
+                            </form>
+                        }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+}

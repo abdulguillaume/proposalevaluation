@@ -1,0 +1,99 @@
+@page "{id:int}"
+@model ProposalEval.Pages.Vendors.DetailsModel
+@{
+    ViewData["Title"] = Model.Vendor.Name;
+    var status = StatusLabels.Vendor(Model.Vendor.Status);
+}
+
+<p><a asp-page="/Rfqs/Details" asp-route-id="@Model.Vendor.RfqId">← @Model.Vendor.Rfq.Number</a></p>
+<div class="d-flex justify-content-between align-items-start gap-3">
+    <div>
+        <h1 class="page-title">@Model.Vendor.Name</h1>
+        <p class="lede">
+            Project ID: @(Model.Vendor.ExternalProjectId ?? "—")
+            <span class="badge-status @StatusLabels.Badge(status)">@status</span>
+        </p>
+    </div>
+    <a class="btn btn-sm btn-navy" asp-page="/Vendors/Details" asp-route-id="@Model.Vendor.Id">Refresh</a>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(Model.Flash))
+{
+    <div class="banner-live">@Model.Flash</div>
+}
+@if (!string.IsNullOrWhiteSpace(Model.Error))
+{
+    <div class="alert alert-danger">@Model.Error</div>
+}
+
+<div class="card-block">
+    <h2 class="h5">Evidence checklist (TOR Section J)</h2>
+    <ul class="checklist">
+        @foreach (var kind in Model.RequiredKinds)
+        {
+            var present = Model.HasKind(kind);
+            <li class="@(present ? "present" : "missing")">
+                @(present ? "Loaded" : "Missing"): @StatusLabels.VendorDocument(kind)
+            </li>
+        }
+    </ul>
+</div>
+
+<div class="card-block">
+    <h2 class="h5">Load a document</h2>
+    <form method="post" asp-page-handler="Upload" enctype="multipart/form-data" class="row g-2 align-items-end">
+        <div class="col-md-4">
+            <label class="form-label" for="kind">Type</label>
+            <select name="kind" id="kind" class="form-select">
+                @foreach (VendorDocumentKind kind in Enum.GetValues<VendorDocumentKind>())
+                {
+                    <option value="@kind">@StatusLabels.VendorDocument(kind)</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-5">
+            <label class="form-label" for="file">File</label>
+            <input type="file" name="file" id="file" class="form-control" />
+        </div>
+        <div class="col-md-3">
+            <button class="btn btn-navy" type="submit">Load document</button>
+        </div>
+    </form>
+</div>
+
+<div class="card-block">
+    <h2 class="h5">Documents</h2>
+    @if (Model.Vendor.Documents.Count == 0)
+    {
+        <p class="mb-0">No files yet. Agents will score missing evidence as 0.00.</p>
+    }
+    else
+    {
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Type</th>
+                    <th>File</th>
+                    <th>Size</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var doc in Model.Vendor.Documents.OrderBy(d => d.Kind).ThenBy(d => d.FileName))
+            {
+                <tr>
+                    <td>@StatusLabels.VendorDocument(doc.Kind)</td>
+                    <td><a href="@BlobNaming.PublicUrl(doc.StorageKey)">@BlobNaming.OriginalName(doc.FileName)</a></td>
+                    <td>@doc.SizeBytes.ToString("N0") bytes</td>
+                    <td>
+                        <form method="post" asp-page-handler="Delete" class="d-inline">
+                            <input type="hidden" name="documentId" value="@doc.Id" />
+                            <button class="btn btn-link btn-sm text-danger p-0" type="submit">Remove</button>
+                        </form>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    }
+</div>

@@ -1,0 +1,49 @@
+﻿@page
+@model IndexModel
+@{
+    ViewData["Title"] = "RFQs";
+}
+
+<div class="d-flex justify-content-between align-items-start mb-3">
+    <div>
+        <h1 class="page-title">RFQs</h1>
+        <p class="lede">Create a solicitation, load the TOR and scoring strategy, then add vendor profiles.</p>
+    </div>
+    <a class="btn btn-navy" asp-page="/Rfqs/Create">New RFQ</a>
+</div>
+
+<div class="card-block">
+    @if (Model.Rfqs.Count == 0)
+    {
+        <p class="mb-0">No RFQs yet. Create one to start.</p>
+    }
+    else
+    {
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Number</th>
+                    <th>Title</th>
+                    <th>TOR</th>
+                    <th>Strategy</th>
+                    <th>Vendors</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var rfq in Model.Rfqs)
+            {
+                var label = StatusLabels.Rfq(rfq.Status);
+                <tr>
+                    <td><a asp-page="/Rfqs/Details" asp-route-id="@rfq.Id">@rfq.Number</a></td>
+                    <td>@rfq.Title</td>
+                    <td>@(rfq.HasTor ? "Yes" : "—")</td>
+                    <td>@(rfq.HasStrategy ? "Yes" : "—")</td>
+                    <td>@rfq.VendorCount</td>
+                    <td><span class="badge-status @StatusLabels.Badge(label)">@label</span></td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    }
+</div>

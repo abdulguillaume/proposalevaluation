@@ -1,0 +1,33 @@
+@page
+@model ProposalEval.Pages.Rfqs.CreateModel
+@{
+    ViewData["Title"] = "New RFQ";
+}
+
+<h1 class="page-title">New RFQ</h1>
+<p class="lede">Create the solicitation first. Then load the TOR and scoring strategy on the next page.</p>
+
+<div class="card-block">
+    <form method="post">
+        <div class="mb-3">
+            <label asp-for="Input.Number" class="form-label">RFQ number</label>
+            <input asp-for="Input.Number" class="form-control" placeholder="30000027877" />
+            <span asp-validation-for="Input.Number" class="text-danger"></span>
+        </div>
+        <div class="mb-3">
+            <label asp-for="Input.Title" class="form-label">Title</label>
+            <input asp-for="Input.Title" class="form-control" placeholder="Redesign of MRP and DoMV Toolbox websites" />
+            <span asp-validation-for="Input.Title" class="text-danger"></span>
+        </div>
+        <div class="mb-3">
+            <label asp-for="Input.Description" class="form-label">Description</label>
+            <textarea asp-for="Input.Description" class="form-control" rows="4"></textarea>
+        </div>
+        <button type="submit" class="btn btn-navy">Create RFQ</button>
+        <a class="btn btn-link" asp-page="/Index">Cancel</a>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
