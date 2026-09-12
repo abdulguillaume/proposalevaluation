@@ -28,7 +28,7 @@ builder.Services.AddHttpClient<AppApiClient>(client =>
     client.BaseAddress = AppApiClient.ResolveBaseAddress();
     client.Timeout = TimeSpan.FromMinutes(5);
 });
-builder.Services.AddHttpClient("AzureOpenAI", client =>
+builder.Services.AddHttpClient("Llm", client =>
 {
     client.Timeout = TimeSpan.FromMinutes(15);
 });

@@ -24,9 +24,10 @@ public enum VendorStatus
     SummaryRejected = 5,
     Scoring = 6,
     AwaitingScoreReview = 7,
-    Scored = 8,
-    Approved = 9
-}
+        Scored = 8,
+        Approved = 9,
+        ScoreRejected = 10
+    }
 
 public enum VendorDocumentKind
 {
@@ -75,5 +76,6 @@ public enum SummaryStatus
 public enum ScoreStatus
 {
     Draft = 0,
-    Approved = 1
+    Approved = 1,
+    Rejected = 2
 }

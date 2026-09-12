@@ -40,6 +40,8 @@ flowchart LR
 
 Scoring does not start for that vendor. The profile status is **summary rejected**. They get no scores and are not in the ranking.
 
+Staff open **Review** on the job (`/Jobs/Review/{id}`). Accept queues a Score job; reject stores a reason and leaves that vendor out of ranking. After scoring, **Results** (`/Rfqs/Results/{id}`) lists scored vendors by TWS and a second list of vendors that were not scored. **Scores** (`/Jobs/Scores/{id}`) shows TWS, mandatory/technical, recommendation, and each criterion.
+
 The evaluator leaves a short reason. Then one of:
 
 | Next step | When |
@@ -224,10 +226,10 @@ A thin process (`ProposalEval.AgentHost`, http://localhost:5028). The applicatio
 
 1. `GET` the filled prompt from the app (`/api/jobs/{id}/prompt`).
 2. Start `ProposalEval.Mcp` over stdio (same job APIs as tools).
-3. Send the prompt to Azure OpenAI chat completions (`{endpoint}/openai/deployments/{deployment}/chat/completions?api-version=2024-06-01`, `api-key` header) with those tools.
+3. Send the prompt to OpenRouter when `OPENROUTER_API_KEY` is set (`https://openrouter.ai/api/v1/chat/completions`, Bearer). Else Groq (`GROQ_API_KEY`). Else Azure OpenAI.
 4. The model calls `read_document` and `save_summary` / `save_scores`. The host has no SQL or blob credentials.
 
-`POST /api/jobs/{id}/run` (optional `?agent=summary|score`). Env: `PROPOSAL_EVAL_API_BASE`, `PROPOSAL_EVAL_MCP_COMMAND`, `AZURE_OPENAI_API_KEY`, plus `AZURE_OPENAI_ENDPOINT` and `AZURE_OPENAI_DEPLOYMENT` (or `AzureOpenAI:Endpoint` / `AzureOpenAI:Deployment` in appsettings). The host calls `{endpoint}/openai/deployments/{deployment}/chat/completions?api-version=2024-06-01` with the `api-key` header — same as the working IOM LLM helper. No `OPENAI_API_KEY`, and no Azure SDK Cognitive Services host.
+`POST /api/jobs/{id}/run` (optional `?agent=summary|score`). Env: `PROPOSAL_EVAL_API_BASE`, `PROPOSAL_EVAL_MCP_COMMAND`, and `OPENROUTER_API_KEY` (optional `OPENROUTER_MODEL`, default `openai/gpt-4o-mini`). If that key is unset: `GROQ_API_KEY`, then Azure OpenAI.
 
 **Start evaluation** queues one Summarize job per vendor, then the app `POST`s each job to the host in the background (`PROPOSAL_EVAL_AGENT_HOST`, default http://localhost:5028). The staff page still returns immediately with *The agent has started working.* If the host is down, that job is marked **Failed**. Retry creates a **new** job on the same run; the failed row stays.
 

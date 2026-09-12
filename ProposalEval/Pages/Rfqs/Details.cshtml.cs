@@ -23,7 +23,7 @@ public class DetailsModel(AppDbContext db, IFileStore files, EvaluationService e
         return await LoadAsync(id) ? Page() : NotFound();
     }
 
-    public async Task<IActionResult> OnPostUploadAsync(int id, RfqDocumentKind kind, IFormFile? file)
+    public async Task<IActionResult> OnPostUploadAsync(int id, RfqDocumentKind kind, IFormFile? file, CancellationToken cancellationToken)
     {
         if (!await LoadAsync(id))
             return NotFound();
@@ -55,6 +55,8 @@ public class DetailsModel(AppDbContext db, IFileStore files, EvaluationService e
 
         RefreshRfqReady();
         await db.SaveChangesAsync();
+        if (kind == RfqDocumentKind.ScoringStrategy)
+            await DefaultRfqCriteria.EnsureAsync(db, Rfq.Id, cancellationToken);
         Flash = $"{StatusLabels.RfqDocument(kind)} loaded.";
         return RedirectToPage(new { id });
     }

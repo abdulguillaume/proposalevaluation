@@ -35,7 +35,10 @@
             <strong>@Model.LatestRun.StatusMessage</strong>
             <div>Run #@Model.LatestRun.Id · <span class="badge-status @StatusLabels.Badge(runLabel)">@runLabel</span></div>
         </div>
-        <a class="btn btn-sm btn-navy" asp-page="/Rfqs/Details" asp-route-id="@Model.Rfq.Id">Refresh</a>
+        <div class="d-flex gap-2">
+            <a class="btn btn-sm btn-navy" asp-page="/Rfqs/Results" asp-route-id="@Model.Rfq.Id">Results</a>
+            <a class="btn btn-sm btn-navy" asp-page="/Rfqs/Details" asp-route-id="@Model.Rfq.Id">Refresh</a>
+        </div>
     </div>
 }
 
@@ -150,6 +153,7 @@
                         <button class="btn btn-sm btn-navy" type="submit">Retry failed jobs</button>
                     </form>
                 }
+                <a class="btn btn-sm btn-navy" asp-page="/Rfqs/Results" asp-route-id="@Model.Rfq.Id">Results</a>
                 <a class="btn btn-sm btn-navy" asp-page="/Rfqs/Details" asp-route-id="@Model.Rfq.Id">Refresh</a>
             </div>
         </div>
@@ -176,9 +180,17 @@
                     <td><span class="badge-status @StatusLabels.Badge(jLabel)">@jLabel</span></td>
                     <td>@job.StatusMessage</td>
                     <td class="text-nowrap">
+                        @if (job.JobType == JobType.Summarize && job.Status is JobStatus.WaitingReview or JobStatus.Completed)
+                        {
+                            <a asp-page="/Jobs/Review" asp-route-id="@job.Id">Review</a>
+                        }
+                        @if (job.JobType == JobType.Score && job.Status is JobStatus.WaitingReview or JobStatus.Completed)
+                        {
+                            <a asp-page="/Jobs/Scores" asp-route-id="@job.Id">@(job.Status == JobStatus.WaitingReview ? "Review" : "Scores")</a>
+                        }
                         @if (job.VendorId is not null)
                         {
-                            <a asp-page="/Jobs/Prompt" asp-route-id="@job.Id" asp-route-rfqId="@Model.Rfq.Id">Prompt</a>
+                            <a class="ms-2" asp-page="/Jobs/Prompt" asp-route-id="@job.Id" asp-route-rfqId="@Model.Rfq.Id">Prompt</a>
                         }
                         @if (EvaluationService.IsRetryable(Model.LatestRun, job))
                         {

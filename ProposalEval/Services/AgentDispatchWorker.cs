@@ -63,7 +63,7 @@ public sealed class AgentDispatchWorker(
         if (response.IsSuccessStatusCode)
         {
             logger.LogInformation("Agent host finished job {JobId}.", jobId);
-            await RefreshRunAsync(jobId, cancellationToken);
+            await ConfirmSavedAsync(jobId, cancellationToken);
             return;
         }
 
@@ -97,7 +97,7 @@ public sealed class AgentDispatchWorker(
         await db.SaveChangesAsync(cancellationToken);
     }
 
-    private async Task RefreshRunAsync(int jobId, CancellationToken cancellationToken)
+    private async Task ConfirmSavedAsync(int jobId, CancellationToken cancellationToken)
     {
         using var scope = scopes.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -107,6 +107,22 @@ public sealed class AgentDispatchWorker(
             .FirstOrDefaultAsync(j => j.Id == jobId, cancellationToken);
         if (job is null)
             return;
+
+        if (job.Status == JobStatus.Running)
+        {
+            var what = job.JobType == JobType.Score ? "scores" : "a summary";
+            job.Status = JobStatus.Failed;
+            job.StatusMessage = Truncate($"The agent finished without saving {what}. Retry to start a new job.");
+            job.CompletedAt = DateTime.UtcNow;
+            db.EvaluationJobEvents.Add(new EvaluationJobEvent
+            {
+                JobId = job.Id,
+                Status = JobStatus.Failed,
+                Message = job.StatusMessage,
+                At = DateTime.UtcNow
+            });
+            logger.LogWarning("Job {JobId} stayed Running after the host returned. Marked failed.", jobId);
+        }
 
         EvaluationService.ApplyRunStatus(job.Run);
         await db.SaveChangesAsync(cancellationToken);

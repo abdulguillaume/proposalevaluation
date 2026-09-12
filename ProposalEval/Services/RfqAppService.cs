@@ -90,6 +90,8 @@ public sealed class RfqAppService(AppDbContext db, IFileStore files, EvaluationS
         db.RfqDocuments.Add(doc);
         RfqIntake.RefreshRfqStatus(rfq);
         await db.SaveChangesAsync(cancellationToken);
+        if (kind == RfqDocumentKind.ScoringStrategy)
+            await DefaultRfqCriteria.EnsureAsync(db, rfq.Id, cancellationToken);
         return OpResult<DocumentDto>.Success(new DocumentDto(doc.Id, "Rfq", doc.Kind.ToString(), doc.FileName, doc.SizeBytes, doc.UploadedAt), 201);
     }
 
@@ -112,6 +114,7 @@ public sealed class RfqAppService(AppDbContext db, IFileStore files, EvaluationS
         if (!await db.Rfqs.AnyAsync(r => r.Id == rfqId, cancellationToken))
             return OpResult<IReadOnlyList<CriterionDto>>.Fail(404, "RFQ not found.");
 
+        await DefaultRfqCriteria.EnsureAsync(db, rfqId, cancellationToken);
         var items = await db.RfqCriteria.AsNoTracking()
             .Where(c => c.RfqId == rfqId)
             .OrderBy(c => c.SortOrder)
@@ -228,6 +231,97 @@ public sealed class RfqAppService(AppDbContext db, IFileStore files, EvaluationS
             .Select(v => new VendorListItemDto(v.Id, v.Name, v.ExternalProjectId, v.Status.ToString(), v.Documents.Count))
             .ToListAsync(cancellationToken);
         return PagedResult<VendorListItemDto>.Create(items, page, size, total);
+    }
+
+    public async Task<OpResult<RankingDto>> GetRankingAsync(int rfqId, CancellationToken cancellationToken)
+    {
+        var rfq = await db.Rfqs.AsNoTracking()
+            .Include(r => r.Vendors)
+            .FirstOrDefaultAsync(r => r.Id == rfqId, cancellationToken);
+        if (rfq is null)
+            return OpResult<RankingDto>.Fail(404, "RFQ not found.");
+
+        var evaluations = await db.VendorEvaluations
+            .Include(e => e.Vendor)
+            .Include(e => e.Scores)
+            .ThenInclude(s => s.Criterion)
+            .Where(e => e.Vendor.RfqId == rfqId)
+            .ToListAsync(cancellationToken);
+
+        var latestByVendor = evaluations
+            .GroupBy(e => e.VendorId)
+            .Select(g => g.MaxBy(e => e.Id)!)
+            .ToList();
+
+        var scored = latestByVendor
+            .Where(e => e.Status != ScoreStatus.Rejected)
+            .OrderByDescending(e => e.Tws)
+            .ThenBy(e => e.Vendor.Name)
+            .ToList();
+
+        var eligible = scored.Where(e => e.MandatoryPass && e.TechnicalPass).ToList();
+        var rankById = eligible
+            .Select((e, i) => (e.VendorId, Rank: i + 1))
+            .ToDictionary(x => x.VendorId, x => x.Rank);
+
+        var scoredDtos = scored.Select(e => new RankedVendorDto(
+            rankById.TryGetValue(e.VendorId, out var rank) ? rank : null,
+            e.VendorId,
+            e.Vendor.Name,
+            e.Vendor.ExternalProjectId,
+            e.JobId,
+            e.Tws,
+            e.TechnicalPass,
+            e.MandatoryPass,
+            e.MandatoryPass && e.TechnicalPass,
+            e.Recommendation,
+            e.Status.ToString())).ToList();
+
+        var scoredIds = scored.Select(e => e.VendorId).ToHashSet();
+        var summaries = await db.ProposalSummaries.AsNoTracking()
+            .Where(s => s.Vendor.RfqId == rfqId)
+            .ToListAsync(cancellationToken);
+        var latestSummary = summaries
+            .GroupBy(s => s.VendorId)
+            .ToDictionary(g => g.Key, g => g.MaxBy(s => s.Id)!);
+
+        var scoreJobs = await db.EvaluationJobs.AsNoTracking()
+            .Where(j => j.RfqId == rfqId && j.JobType == JobType.Score)
+            .ToListAsync(cancellationToken);
+        var latestScoreJob = scoreJobs
+            .Where(j => j.VendorId is not null)
+            .GroupBy(j => j.VendorId!.Value)
+            .ToDictionary(g => g.Key, g => g.MaxBy(j => j.Id)!);
+
+        var leftover = rfq.Vendors
+            .Where(v => !scoredIds.Contains(v.Id))
+            .OrderBy(v => v.Name)
+            .Select(v =>
+            {
+                latestSummary.TryGetValue(v.Id, out var summary);
+                latestScoreJob.TryGetValue(v.Id, out var scoreJob);
+                var scoresRejected = v.Status == VendorStatus.ScoreRejected
+                    || latestByVendor.FirstOrDefault(e => e.VendorId == v.Id)?.Status == ScoreStatus.Rejected;
+                var rejected = scoresRejected
+                    || v.Status == VendorStatus.SummaryRejected
+                    || summary is { Status: SummaryStatus.Rejected };
+                return (
+                    Rejected: rejected,
+                    Dto: new UnscoredVendorDto(
+                        v.Id,
+                        v.Name,
+                        v.ExternalProjectId,
+                        v.Status.ToString(),
+                        scoresRejected ? scoreJob?.StatusMessage : summary?.RejectionReason ?? scoreJob?.StatusMessage,
+                        summary?.JobId,
+                        scoreJob?.Id));
+            })
+            .ToList();
+
+        var inProgress = leftover.Where(x => !x.Rejected).Select(x => x.Dto).ToList();
+        var notAccepted = leftover.Where(x => x.Rejected).Select(x => x.Dto).ToList();
+
+        return OpResult<RankingDto>.Success(new RankingDto(rfq.Id, rfq.Number, rfq.Title, scoredDtos, inProgress, notAccepted));
     }
 
     private static RfqDetailDto Map(Rfq rfq) =>

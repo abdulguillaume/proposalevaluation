@@ -14,7 +14,17 @@
             <span class="badge-status @StatusLabels.Badge(status)">@status</span>
         </p>
     </div>
-    <a class="btn btn-sm btn-navy" asp-page="/Vendors/Details" asp-route-id="@Model.Vendor.Id">Refresh</a>
+    <div class="d-flex gap-2">
+        @if (Model.ReviewJobId is int reviewJobId)
+        {
+            <a class="btn btn-sm btn-navy" asp-page="/Jobs/Review" asp-route-id="@reviewJobId">Review summary</a>
+        }
+        @if (Model.ScoresJobId is int scoresJobId)
+        {
+            <a class="btn btn-sm btn-navy" asp-page="/Jobs/Scores" asp-route-id="@scoresJobId">@(Model.Vendor.Status == VendorStatus.AwaitingScoreReview ? "Review scores" : "Scores")</a>
+        }
+        <a class="btn btn-sm btn-navy" asp-page="/Vendors/Details" asp-route-id="@Model.Vendor.Id">Refresh</a>
+    </div>
 </div>
 
 @if (!string.IsNullOrWhiteSpace(Model.Flash))

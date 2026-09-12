@@ -61,6 +61,7 @@ public sealed class PreparedPromptService(AppDbContext db, IHostEnvironment env)
             if (accepted is null)
                 return OpResult<PreparedPromptDto>.Fail(409, "No accepted summary for this vendor. Scoring prompt is not available.");
 
+            await DefaultRfqCriteria.EnsureAsync(db, job.RfqId, cancellationToken);
             var criteria = await db.RfqCriteria.AsNoTracking()
                 .Where(c => c.RfqId == job.RfqId)
                 .OrderBy(c => c.SortOrder)

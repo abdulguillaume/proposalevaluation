@@ -9,6 +9,8 @@ namespace ProposalEval.Pages.Vendors;
 public class DetailsModel(AppDbContext db, IFileStore files) : PageModel
 {
     public Vendor Vendor { get; private set; } = null!;
+    public int? ReviewJobId { get; private set; }
+    public int? ScoresJobId { get; private set; }
     public string? Flash { get; private set; }
     public string? Error { get; private set; }
 
@@ -87,6 +89,16 @@ public class DetailsModel(AppDbContext db, IFileStore files) : PageModel
             return false;
 
         Vendor = vendor;
+        ReviewJobId = await db.ProposalSummaries
+            .Where(s => s.VendorId == vendor.Id)
+            .OrderByDescending(s => s.Id)
+            .Select(s => (int?)s.JobId)
+            .FirstOrDefaultAsync();
+        ScoresJobId = await db.VendorEvaluations
+            .Where(e => e.VendorId == vendor.Id)
+            .OrderByDescending(e => e.Id)
+            .Select(e => (int?)e.JobId)
+            .FirstOrDefaultAsync();
         Flash = TempData["Flash"] as string;
         return true;
     }

@@ -48,6 +48,15 @@ public sealed class AppApiClient(HttpClient http)
 
         return (200, envelope.Data, null);
     }
+
+    public async Task<bool> HasSavedResultAsync(int jobId, string agent, CancellationToken cancellationToken)
+    {
+        var path = agent.Equals("score", StringComparison.OrdinalIgnoreCase)
+            ? $"api/jobs/{jobId}/scores"
+            : $"api/jobs/{jobId}/summary";
+        using var response = await http.GetAsync(path, cancellationToken);
+        return response.IsSuccessStatusCode;
+    }
 }
 
 public sealed class Envelope<T>

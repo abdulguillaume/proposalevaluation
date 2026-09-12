@@ -1,0 +1,140 @@
+@page "{id:int}"
+@model ProposalEval.Pages.Rfqs.ResultsModel
+@{
+    ViewData["Title"] = $"{Model.Ranking.Number} results";
+}
+
+<p><a asp-page="/Rfqs/Details" asp-route-id="@Model.Ranking.RfqId">← @Model.Ranking.Number</a></p>
+<div class="d-flex justify-content-between align-items-start gap-3">
+    <div>
+        <h1 class="page-title">Results</h1>
+        <p class="lede">@Model.Ranking.Title. Eligible rank is by TWS (pass line 49.00). Mandatory fails stay in the scored list but are not ranked.</p>
+    </div>
+    <a class="btn btn-sm btn-navy" asp-page="/Rfqs/Results" asp-route-id="@Model.Ranking.RfqId">Refresh</a>
+</div>
+
+<div class="card-block">
+    <h2 class="h5">Scored vendors</h2>
+    @if (Model.Ranking.Scored.Count == 0)
+    {
+        <p class="mb-0">No scores yet. Vendors still scoring appear below. Refresh after the scoring job saves.</p>
+    }
+    else
+    {
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Rank</th>
+                    <th>Vendor</th>
+                    <th>Project ID</th>
+                    <th>TWS</th>
+                    <th>Technical</th>
+                    <th>Mandatory</th>
+                    <th>Recommendation</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var row in Model.Ranking.Scored)
+            {
+                <tr>
+                    <td>@(row.EligibleRank?.ToString() ?? "—")</td>
+                    <td>@row.Name</td>
+                    <td>@(row.ExternalProjectId ?? "—")</td>
+                    <td>@row.Tws.ToString("0.00")</td>
+                    <td>@(row.TechnicalPass ? "Pass" : "Fail")</td>
+                    <td>@(row.MandatoryPass ? "Pass" : "Fail")</td>
+                    <td>@(row.Recommendation is { Length: > 140 } ? row.Recommendation[..140] + "…" : (row.Recommendation ?? "—"))</td>
+                    <td><a asp-page="/Jobs/Scores" asp-route-id="@row.JobId">@(row.Status == nameof(ScoreStatus.Draft) ? "Review" : "Scores")</a></td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    }
+</div>
+
+<div class="card-block">
+    <h2 class="h5">In progress</h2>
+    <p class="lede">Summary accepted, or scoring not saved yet. They are not in the ranking until scores exist.</p>
+    @if (Model.Ranking.InProgress.Count == 0)
+    {
+        <p class="mb-0">No vendors are waiting on scoring.</p>
+    }
+    else
+    {
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Vendor</th>
+                    <th>Project ID</th>
+                    <th>Status</th>
+                    <th>Note</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var row in Model.Ranking.InProgress)
+            {
+                var label = StatusLabels.Vendor(Enum.TryParse<VendorStatus>(row.Status, out var parsed) ? parsed : VendorStatus.Draft);
+                <tr>
+                    <td>@row.Name</td>
+                    <td>@(row.ExternalProjectId ?? "—")</td>
+                    <td><span class="badge-status @StatusLabels.Badge(label)">@label</span></td>
+                    <td>@(row.Reason ?? "—")</td>
+                    <td>
+                        @if (row.SummaryJobId is int summaryJobId)
+                        {
+                            <a asp-page="/Jobs/Review" asp-route-id="@summaryJobId">Summary</a>
+                        }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    }
+</div>
+
+<div class="card-block">
+    <h2 class="h5">Not accepted</h2>
+    <p class="lede">Summaries or scores rejected. They are not in the ranking.</p>
+    @if (Model.Ranking.NotAccepted.Count == 0)
+    {
+        <p class="mb-0">No rejected vendors.</p>
+    }
+    else
+    {
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Vendor</th>
+                    <th>Project ID</th>
+                    <th>Status</th>
+                    <th>Reason</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var row in Model.Ranking.NotAccepted)
+            {
+                var label = StatusLabels.Vendor(Enum.TryParse<VendorStatus>(row.Status, out var parsed) ? parsed : VendorStatus.Draft);
+                <tr>
+                    <td>@row.Name</td>
+                    <td>@(row.ExternalProjectId ?? "—")</td>
+                    <td><span class="badge-status @StatusLabels.Badge(label)">@label</span></td>
+                    <td>@(row.Reason ?? "—")</td>
+                    <td>
+                        @if (row.ScoreJobId is int rejectedScoreJobId)
+                        {
+                            <a asp-page="/Jobs/Scores" asp-route-id="@rejectedScoreJobId">Scores</a>
+                        }
+                        else if (row.SummaryJobId is int summaryJobId)
+                        {
+                            <a asp-page="/Jobs/Review" asp-route-id="@summaryJobId">Summary</a>
+                        }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    }
+</div>

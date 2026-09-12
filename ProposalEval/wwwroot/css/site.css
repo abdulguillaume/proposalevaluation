@@ -108,3 +108,12 @@ html, body {
 .present { color: var(--ok); }
 
 table.table { margin-bottom: 0; }
+
+.summary-body {
+    white-space: pre-wrap;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 1rem;
+    margin: 0 0 1rem;
+}

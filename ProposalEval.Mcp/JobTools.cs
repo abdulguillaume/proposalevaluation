@@ -42,7 +42,7 @@ public sealed class JobTools(ProposalEvalApiClient api)
     public Task<string> get_accepted_summary(int jobId, CancellationToken cancellationToken) =>
         api.GetAsync($"api/jobs/{jobId}/summary?acceptedOnly=true", cancellationToken);
 
-    [McpServerTool, Description("Save 0-1 scores for a Score job. itemsJson is an array: [{\"rfqCriterionId\":1,\"score\":0.8,\"justification\":\"...\"}]. Application computes totals.")]
+    [McpServerTool, Description("Save 0-1 scores for a Score job. itemsJson must be a JSON array, e.g. [{\"rfqCriterionId\":1,\"score\":0.8,\"justification\":\"cite file\"}]. You may use \"code\":\"C1\" instead of rfqCriterionId. Application computes totals.")]
     public Task<string> save_scores(
         int jobId,
         bool mandatoryPass,
@@ -50,9 +50,35 @@ public sealed class JobTools(ProposalEvalApiClient api)
         string itemsJson,
         CancellationToken cancellationToken)
     {
+        var items = NormalizeItemsJson(itemsJson);
+        if (items is null)
+            return Task.FromResult("""{"code":400,"error":"itemsJson must be a JSON array of scores."}""");
+
         var rec = recommendation is null ? "null" : System.Text.Json.JsonSerializer.Serialize(recommendation);
-        var json = $$"""{"mandatoryPass":{{mandatoryPass.ToString().ToLowerInvariant()}},"recommendation":{{rec}},"items":{{itemsJson}}}""";
+        var json = $$"""{"mandatoryPass":{{mandatoryPass.ToString().ToLowerInvariant()}},"recommendation":{{rec}},"items":{{items}}}""";
         return api.PostJsonAsync($"api/jobs/{jobId}/scores", json, cancellationToken);
+    }
+
+    private static string? NormalizeItemsJson(string? itemsJson)
+    {
+        if (string.IsNullOrWhiteSpace(itemsJson))
+            return null;
+
+        var trimmed = itemsJson.Trim();
+        if (trimmed.StartsWith('['))
+            return trimmed;
+
+        try
+        {
+            var inner = System.Text.Json.JsonSerializer.Deserialize<string>(trimmed);
+            if (inner is not null && inner.TrimStart().StartsWith('['))
+                return inner.Trim();
+        }
+        catch (System.Text.Json.JsonException)
+        {
+        }
+
+        return trimmed.StartsWith('{') ? $"[{trimmed}]" : null;
     }
 
     [McpServerTool, Description("Get saved scores and computed TWS for this job, if any.")]

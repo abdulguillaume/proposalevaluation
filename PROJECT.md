@@ -1,6 +1,6 @@
 # AI Proposal Evaluation System
 
-Proof of concept for an IOM system that scores vendor proposals against a published TOR, using agents for the first pass and a human evaluator to review and approve the result.
+host
 
 ## Problem
 
@@ -33,28 +33,32 @@ The system does not replace the evaluation committee. Staff spend time on setup,
 
 ## This assignment (context for the POC)
 
-| Item | Detail |
-|------|--------|
-| Buyer | IOM (BMM Programme / Regional MRP) |
-| Solicitation | RFQ 30000027877 |
-| Scope | Redevelop MRP (`mrp-easternroute.com`) and DoMV Toolbox (`domvtoolbox.iom.int`); DoMV app feasibility |
-| Delivery | Output-based, 3 months, home-based |
-| Combined method | Technical **70%** / Financial **30%** |
-| Official TOR scale | Technical 1000 points (Forms 1–3) |
-| This evaluation scale | Technical **70** points (same 70%) |
 
-People write the scoring strategy as a text file **outside `POC/`**. The one provided so far is `../SCORING_STRATEGY.md`. Staff load that file onto the RFQ. This POC must use that model, not a new one.
+| Item                  | Detail                                                                                                |
+| --------------------- | ----------------------------------------------------------------------------------------------------- |
+| Buyer                 | IOM (BMM Programme / Regional MRP)                                                                    |
+| Solicitation          | RFQ 30000027877                                                                                       |
+| Scope                 | Redevelop MRP (`mrp-easternroute.com`) and DoMV Toolbox (`domvtoolbox.iom.int`); DoMV app feasibility |
+| Delivery              | Output-based, 3 months, home-based                                                                    |
+| Combined method       | Technical **70%** / Financial **30%**                                                                 |
+| Official TOR scale    | Technical 1000 points (Forms 1–3)                                                                     |
+| This evaluation scale | Technical **70** points (same 70%)                                                                    |
+
+
+People write the scoring strategy as a text file **outside** `POC/`. The one provided so far is `../SCORING_STRATEGY.md`. Staff load that file onto the RFQ. This POC must use that model, not a new one.
 
 ## Scoring model
 
 Each criterion is scored on a **0.00–1.00** quality scale, then multiplied by its **weight**. These three criteria are the technical 70 points (TOR technical 70%).
 
-| ID | Criterion (this evaluation) | Maps to TOR | Weight | Max points |
-|----|-----------------------------|-------------|--------|------------|
-| **C1** | Proposal plan and fit | Form 2 — Methodology, approach and implementation plan (400 pts) | 30 | 30 |
-| **C2** | Qualifications package: government permit + specific experience/expertise + organization and staffing | Form 3 — Management structure and key personnel (300 pts), plus permit evidence | 20 | 20 |
-| **C3** | Experience of the firm (relevant experience) | Form 1 — Expertise of the firm/organization (300 pts) | 20 | 20 |
-| **Total technical** | | | **70** | **70** |
+
+| ID                  | Criterion (this evaluation)                                                                           | Maps to TOR                                                                     | Weight | Max points |
+| ------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ------ | ---------- |
+| **C1**              | Proposal plan and fit                                                                                 | Form 2 — Methodology, approach and implementation plan (400 pts)                | 30     | 30         |
+| **C2**              | Qualifications package: government permit + specific experience/expertise + organization and staffing | Form 3 — Management structure and key personnel (300 pts), plus permit evidence | 20     | 20         |
+| **C3**              | Experience of the firm (relevant experience)                                                          | Form 1 — Expertise of the firm/organization (300 pts)                           | 20     | 20         |
+| **Total technical** |                                                                                                       |                                                                                 | **70** | **70**     |
+
 
 **Weighted points** = `score (0–1) × weight`  
 **Total Weighted Score (TWS)** = C1 + C2 + C3 points (0–70)  
@@ -67,13 +71,15 @@ Ranking of *eligible* bids is by TWS. Financial score, if evaluated later: `FS =
 
 C2 is one weighted criterion. It is the **average** of three 0–1 items. The system records and displays all five scores (as in `processed/SCORES.md`):
 
-| Display name | ID | Role in TWS |
-|--------------|----|-------------|
-| 1. Proposal plan | C1 | `C1 × 30` |
-| 2. Valid government permit | C2a | part of C2 average |
+
+| Display name                         | ID  | Role in TWS        |
+| ------------------------------------ | --- | ------------------ |
+| 1. Proposal plan                     | C1  | `C1 × 30`          |
+| 2. Valid government permit           | C2a | part of C2 average |
 | 3. Specific experience and expertise | C2b | part of C2 average |
-| 4. Organization and staffing | C2c | part of C2 average |
-| 5. Relevant experience | C3 | `C3 × 20` |
+| 4. Organization and staffing         | C2c | part of C2 average |
+| 5. Relevant experience               | C3  | `C3 × 20`          |
+
 
 ```
 C2_score = (C2a + C2b + C2c) / 3
@@ -84,6 +90,8 @@ TWS = (C1 × 30) + (C2_score × 20) + (C3 × 20)
 Technical pass line: **TWS ≥ 49.00 / 70** (70% of technical points). Mandatory fail (incomplete Section J, no relevant portfolio, no signed TOR / 3-month timeline) still gets a score for the record but is **not eligible** to rank.
 
 ## What the system must do
+
+
 
 ### 1. The application — profiles and evidence
 
@@ -148,14 +156,18 @@ Rejected → no scores; fix profile, re-summarize, or leave out
 Evaluator reviews scores, edits if needed, approves
 ```
 
+
+
 ## Why this is worth building
 
-| Today | With the system |
-|-------|-----------------|
-| Packs sit in email / shared folders | App holds a profile and evidence per vendor |
-| Three staff read ~21 packs against the TOR | When ready, agents summarize each proposal; scoring starts only after a summary is accepted |
-| Scoring is slow and hard to keep consistent | Same strategy applied to every ready profile |
-| Comparison lives in spreadsheets / notes | One score table and ranking, recalculated on edit |
-| Review happens only after all reading is done | Review starts after the requested evaluation run |
+
+| Today                                         | With the system                                                                             |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Packs sit in email / shared folders           | App holds a profile and evidence per vendor                                                 |
+| Three staff read ~21 packs against the TOR    | When ready, agents summarize each proposal; scoring starts only after a summary is accepted |
+| Scoring is slow and hard to keep consistent   | Same strategy applied to every ready profile                                                |
+| Comparison lives in spreadsheets / notes      | One score table and ranking, recalculated on edit                                           |
+| Review happens only after all reading is done | Review starts after the requested evaluation run                                            |
+
 
 The POC in this folder is the place to design and build that pipeline. Existing scored bids under `processed/` are the reference set for checking that agent scores stay close to the agreed model.

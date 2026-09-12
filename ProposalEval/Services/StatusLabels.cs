@@ -25,6 +25,7 @@ public static class StatusLabels
         VendorStatus.AwaitingScoreReview => "Awaiting score review",
         VendorStatus.Scored => "Scored",
         VendorStatus.Approved => "Approved",
+        VendorStatus.ScoreRejected => "Scores rejected",
         _ => status.ToString()
     };
 
@@ -62,6 +63,22 @@ public static class StatusLabels
         _ => kind.ToString()
     };
 
+    public static string Score(ScoreStatus status) => status switch
+    {
+        ScoreStatus.Draft => "Draft",
+        ScoreStatus.Approved => "Approved",
+        ScoreStatus.Rejected => "Rejected",
+        _ => status.ToString()
+    };
+
+    public static string Summary(SummaryStatus status) => status switch
+    {
+        SummaryStatus.Draft => "Draft",
+        SummaryStatus.Accepted => "Accepted",
+        SummaryStatus.Rejected => "Rejected",
+        _ => status.ToString()
+    };
+
     public static string RfqDocument(RfqDocumentKind kind) => kind switch
     {
         RfqDocumentKind.Tor => "TOR",
@@ -76,8 +93,8 @@ public static class StatusLabels
         "Evaluating" or "Summarizing" or "Scoring" or "Queued" or "Running" or "Requested" => "badge-live",
         "Awaiting summary review" or "Awaiting score review" or "Waiting review"
             or "Waiting summary review" or "Waiting score review" => "badge-wait",
-        "Summary accepted" or "Scored" or "Approved" or "Completed" => "badge-ok",
-        "Summary rejected" or "Failed" or "Cancelled" => "badge-bad",
+        "Summary accepted" or "Accepted" or "Scored" or "Approved" or "Completed" => "badge-ok",
+        "Summary rejected" or "Scores rejected" or "Rejected" or "Failed" or "Cancelled" => "badge-bad",
         _ => "badge-draft"
     };
 }

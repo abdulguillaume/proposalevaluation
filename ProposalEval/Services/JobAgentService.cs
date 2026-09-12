@@ -97,6 +97,8 @@ public sealed class JobAgentService(AppDbContext db, IFileStore files)
         if (job is null)
             return OpResult<IReadOnlyList<CriterionDto>>.Fail(404, "Job not found.");
 
+        await DefaultRfqCriteria.EnsureAsync(db, job.RfqId, cancellationToken);
+
         var items = await db.RfqCriteria.AsNoTracking()
             .Where(c => c.RfqId == job.RfqId)
             .OrderBy(c => c.SortOrder)
@@ -194,17 +196,32 @@ public sealed class JobAgentService(AppDbContext db, IFileStore files)
         if (!accepted)
             return OpResult<VendorEvaluationDto>.Fail(409, "Summary must be accepted before scores can be saved.");
 
+        await DefaultRfqCriteria.EnsureAsync(db, job.RfqId, cancellationToken);
         var criteria = await db.RfqCriteria.Where(c => c.RfqId == job.RfqId).ToListAsync(cancellationToken);
         if (criteria.Count == 0)
             return OpResult<VendorEvaluationDto>.Fail(400, "No criteria are defined for this RFQ.");
 
+        var resolved = new List<(RfqCriterion Criterion, SaveScoreItemRequest Item)>();
         foreach (var item in request.Items)
         {
             if (item.Score is < 0 or > 1)
                 return OpResult<VendorEvaluationDto>.Fail(400, "Each score must be between 0.00 and 1.00.");
-            if (criteria.All(c => c.Id != item.RfqCriterionId))
-                return OpResult<VendorEvaluationDto>.Fail(400, $"Criterion {item.RfqCriterionId} does not belong to this RFQ.");
+
+            var criterion = item.RfqCriterionId > 0
+                ? criteria.FirstOrDefault(c => c.Id == item.RfqCriterionId)
+                : null;
+            if (criterion is null && !string.IsNullOrWhiteSpace(item.Code))
+                criterion = criteria.FirstOrDefault(c => c.Code.Equals(item.Code.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (criterion is null)
+                return OpResult<VendorEvaluationDto>.Fail(400, $"Criterion {item.Code ?? item.RfqCriterionId.ToString()} does not belong to this RFQ.");
+            if (resolved.Any(r => r.Criterion.Id == criterion.Id))
+                return OpResult<VendorEvaluationDto>.Fail(400, $"Criterion {criterion.Code} was scored more than once.");
+
+            resolved.Add((criterion, item));
         }
+
+        if (resolved.Count != criteria.Count)
+            return OpResult<VendorEvaluationDto>.Fail(400, "Every criterion must have a score.");
 
         var existing = await db.VendorEvaluations
             .Include(e => e.Scores)
@@ -224,11 +241,11 @@ public sealed class JobAgentService(AppDbContext db, IFileStore files)
             Status = ScoreStatus.Draft,
             CreatedAt = DateTime.UtcNow
         };
-        foreach (var item in request.Items)
+        foreach (var (criterion, item) in resolved)
         {
             evaluation.Scores.Add(new VendorScore
             {
-                RfqCriterionId = item.RfqCriterionId,
+                RfqCriterionId = criterion.Id,
                 Score = decimal.Round(item.Score, 2),
                 Justification = item.Justification
             });
@@ -239,6 +256,13 @@ public sealed class JobAgentService(AppDbContext db, IFileStore files)
         job.StatusMessage = "Scores saved. Waiting for review.";
         job.Vendor!.Status = VendorStatus.AwaitingScoreReview;
         job.Vendor.UpdatedAt = DateTime.UtcNow;
+        db.EvaluationJobEvents.Add(new EvaluationJobEvent
+        {
+            JobId = job.Id,
+            Status = JobStatus.WaitingReview,
+            Message = "Scores written.",
+            At = DateTime.UtcNow
+        });
         await db.SaveChangesAsync(cancellationToken);
 
         var saved = await GetEvaluationAsync(job.Id, cancellationToken);

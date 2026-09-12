@@ -1,0 +1,134 @@
+@page "{id:int}"
+@model ProposalEval.Pages.Jobs.ReviewModel
+@{
+    ViewData["Title"] = $"Review {Model.Job.Vendor!.Name}";
+    var vendorStatus = StatusLabels.Vendor(Model.Job.Vendor.Status);
+    var summaryStatus = StatusLabels.Summary(Model.Summary.Status);
+}
+
+<p><a asp-page="/Rfqs/Details" asp-route-id="@Model.Job.RfqId">← @Model.Job.Rfq.Number</a></p>
+<h1 class="page-title">Review summary</h1>
+<p class="lede">
+    @Model.Job.Vendor.Name
+    · project @(Model.Job.Vendor.ExternalProjectId ?? "—")
+    · job #@Model.Job.Id
+    <span class="badge-status @StatusLabels.Badge(vendorStatus)">@vendorStatus</span>
+    <span class="badge-status @StatusLabels.Badge(summaryStatus)">@summaryStatus</span>
+</p>
+
+<div id="review-flash" class="banner-live d-none"></div>
+<div id="review-error" class="alert alert-danger d-none"></div>
+
+<div class="card-block">
+    <h2 class="h5">Proposal summary</h2>
+    <p class="lede">Accept to queue scoring for this vendor. Reject to leave them out of ranking. Other vendors are unchanged.</p>
+    <pre class="summary-body">@Model.Summary.Body</pre>
+    @if (Model.Summary.Status == SummaryStatus.Rejected && !string.IsNullOrWhiteSpace(Model.Summary.RejectionReason))
+    {
+        <p class="missing mb-0"><strong>Rejection reason:</strong> @Model.Summary.RejectionReason</p>
+    }
+</div>
+
+@if (Model.CanReview)
+{
+    <div class="d-flex gap-2">
+        <button id="accept-summary" class="btn btn-navy" type="button" data-job-id="@Model.Job.Id" data-rfq-id="@Model.Job.RfqId">Accept summary</button>
+        <button class="btn btn-outline-danger" type="button" data-bs-toggle="modal" data-bs-target="#reject-modal">Reject summary</button>
+    </div>
+
+    <div class="modal fade" id="reject-modal" tabindex="-1" aria-labelledby="reject-title" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title h5" id="reject-title">Reject summary</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <label class="form-label" for="reject-reason">Reason</label>
+                    <textarea id="reject-reason" class="form-control" rows="4" maxlength="2000" placeholder="Why this brief should not go to scoring."></textarea>
+                    <p id="reject-field-error" class="missing mt-2 mb-0 d-none"></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button id="confirm-reject" type="button" class="btn btn-outline-danger" data-job-id="@Model.Job.Id" data-rfq-id="@Model.Job.RfqId">Reject</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@section Scripts {
+    <script>
+        (function () {
+            const flash = document.getElementById("review-flash");
+            const errorBox = document.getElementById("review-error");
+
+            function showError(message) {
+                errorBox.textContent = message;
+                errorBox.classList.remove("d-none");
+                flash.classList.add("d-none");
+            }
+
+            function showFlash(message) {
+                flash.textContent = message;
+                flash.classList.remove("d-none");
+                errorBox.classList.add("d-none");
+            }
+
+            async function postJson(url, body) {
+                const headers = { "Accept": "application/json" };
+                const options = { method: "POST", headers };
+                if (body !== undefined) {
+                    headers["Content-Type"] = "application/json";
+                    options.body = JSON.stringify(body);
+                }
+                const response = await fetch(url, options);
+                const payload = await response.json();
+                if (!payload || payload.code < 200 || payload.code >= 300) {
+                    throw new Error((payload && payload.error) || "The request failed.");
+                }
+                return payload.data;
+            }
+
+            const accept = document.getElementById("accept-summary");
+            if (accept) {
+                accept.addEventListener("click", async function () {
+                    accept.disabled = true;
+                    try {
+                        await postJson("/api/jobs/" + accept.dataset.jobId + "/summary/accept");
+                        showFlash("Summary accepted. Scoring has started.");
+                        window.location.href = "/Rfqs/Details/" + accept.dataset.rfqId;
+                    } catch (err) {
+                        accept.disabled = false;
+                        showError(err.message);
+                    }
+                });
+            }
+
+            const confirmReject = document.getElementById("confirm-reject");
+            const reasonField = document.getElementById("reject-reason");
+            const fieldError = document.getElementById("reject-field-error");
+            if (confirmReject && reasonField) {
+                confirmReject.addEventListener("click", async function () {
+                    const reason = reasonField.value.trim();
+                    if (!reason) {
+                        fieldError.textContent = "A rejection reason is required.";
+                        fieldError.classList.remove("d-none");
+                        return;
+                    }
+                    fieldError.classList.add("d-none");
+                    confirmReject.disabled = true;
+                    try {
+                        await postJson("/api/jobs/" + confirmReject.dataset.jobId + "/summary/reject", { reason: reason });
+                        showFlash("Summary rejected. This vendor will not be scored.");
+                        window.location.href = "/Rfqs/Details/" + confirmReject.dataset.rfqId;
+                    } catch (err) {
+                        confirmReject.disabled = false;
+                        showError(err.message);
+                        bootstrap.Modal.getInstance(document.getElementById("reject-modal"))?.hide();
+                    }
+                });
+            }
+        })();
+    </script>
+}

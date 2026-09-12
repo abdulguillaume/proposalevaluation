@@ -213,6 +213,31 @@ public sealed class RfqsController(ILogger<RfqsController> logger, RfqAppService
         }
     }
 
+    [HttpGet("{id:int}/ranking")]
+    public async Task<IActionResult> Ranking(int id, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Getting ranking for RFQ {RfqId}.", id);
+        try
+        {
+            var result = await rfqs.GetRankingAsync(id, cancellationToken);
+            if (!result.Ok)
+                return Fail(result.Status, result.Error!);
+
+            _logger.LogInformation(
+                "Loaded ranking for RFQ {RfqId}: {Scored} scored, {InProgress} in progress, {NotAccepted} not accepted.",
+                id,
+                result.Data!.Scored.Count,
+                result.Data.InProgress.Count,
+                result.Data.NotAccepted.Count);
+            return Success(200, result.Data);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get ranking for RFQ {RfqId}.", id);
+            return Fail(500, "Failed to get ranking.");
+        }
+    }
+
     [HttpGet("{id:int}/vendors")]
     public async Task<IActionResult> ListVendors(int id, int pageNumber = 1, int pageSize = 20, CancellationToken cancellationToken = default)
     {

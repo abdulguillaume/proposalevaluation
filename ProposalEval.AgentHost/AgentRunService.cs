@@ -72,11 +72,19 @@ public sealed class AgentRunService(
 
             var text = response.Text?.Trim() ?? "";
             logger.LogInformation("Model finished job {JobId}.", prompt.JobId);
+
+            if (!await app.HasSavedResultAsync(prompt.JobId, prompt.Agent, cancellationToken))
+            {
+                var what = prompt.Agent == "score" ? "scores" : "a summary";
+                logger.LogWarning("Job {JobId} finished without saving {What}.", prompt.JobId, what);
+                return (409, null, $"The agent finished without saving {what}.");
+            }
+
             return (200, new AgentRunResult(prompt.JobId, prompt.Agent, prompt.JobType, "completed", text), null);
         }
         catch (HttpRequestException ex)
         {
-            logger.LogError(ex, "Azure OpenAI request failed for job {JobId}.", jobId);
+            logger.LogError(ex, "LLM request failed for job {JobId}.", jobId);
             return (500, null, Truncate(ex.Message));
         }
         catch (Exception ex)

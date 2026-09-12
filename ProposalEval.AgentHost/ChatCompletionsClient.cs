@@ -7,33 +7,44 @@ using Microsoft.Extensions.AI;
 
 namespace ProposalEval.AgentHost;
 
+public enum LlmAuth
+{
+    Bearer,
+    AzureApiKey
+}
+
 /// <summary>
-/// Calls Azure OpenAI chat completions the same way as the working IOM LLM helper:
-/// POST {endpoint}/openai/deployments/{deployment}/chat/completions?api-version=2024-06-01
-/// with the api-key header. Avoids the Azure SDK, which can hit the Cognitive Services
-/// host that this VNet-restricted resource rejects.
+/// OpenAI-compatible chat completions. OpenRouter and Groq use Bearer.
+/// Azure uses an api-key header on the deployments URL.
 /// </summary>
-public sealed class AzureChatCompletionsClient(HttpClient http, string endpoint, string deployment, string apiKey, string apiVersion) : IChatClient
+public sealed class ChatCompletionsClient(
+    HttpClient http,
+    string completionsUrl,
+    string model,
+    LlmAuth auth,
+    string apiKey,
+    string? provider = null,
+    IReadOnlyDictionary<string, string>? extraHeaders = null) : IChatClient
 {
     private static readonly JsonSerializerOptions Json = new()
     {
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
-    private readonly ChatClientMetadata _metadata = new("azure-openai", new Uri(endpoint), deployment);
+    private readonly ChatClientMetadata _metadata = new(
+        provider ?? (auth == LlmAuth.Bearer ? "openai-compatible" : "azure-openai"),
+        new Uri(completionsUrl),
+        model);
 
     public async Task<ChatResponse> GetResponseAsync(
         IEnumerable<ChatMessage> messages,
         ChatOptions? options = null,
         CancellationToken cancellationToken = default)
     {
-        var baseUrl = endpoint.TrimEnd('/');
-        var url = $"{baseUrl}/openai/deployments/{Uri.EscapeDataString(deployment)}/chat/completions?api-version={Uri.EscapeDataString(apiVersion)}";
-
         var payload = new Dictionary<string, object?>
         {
-            ["model"] = deployment,
-            ["messages"] = messages.Select(ToWireMessage).ToList(),
+            ["model"] = model,
+            ["messages"] = messages.SelectMany(ToWireMessages).ToList(),
             ["temperature"] = options?.Temperature ?? 0.2f,
             ["max_tokens"] = options?.MaxOutputTokens ?? 4096
         };
@@ -42,8 +53,18 @@ public sealed class AzureChatCompletionsClient(HttpClient http, string endpoint,
         if (tools.Count > 0)
             payload["tools"] = tools;
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, url);
-        request.Headers.TryAddWithoutValidation("api-key", apiKey);
+        using var request = new HttpRequestMessage(HttpMethod.Post, completionsUrl);
+        if (auth == LlmAuth.AzureApiKey)
+            request.Headers.TryAddWithoutValidation("api-key", apiKey);
+        else
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+
+        if (extraHeaders is not null)
+        {
+            foreach (var header in extraHeaders)
+                request.Headers.TryAddWithoutValidation(header.Key, header.Value);
+        }
+
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         request.Content = new StringContent(JsonSerializer.Serialize(payload, Json), Encoding.UTF8, "application/json");
 
@@ -63,7 +84,7 @@ public sealed class AzureChatCompletionsClient(HttpClient http, string endpoint,
         return new ChatResponse(new ChatMessage(ChatRole.Assistant, contents))
         {
             FinishReason = finish,
-            ModelId = deployment
+            ModelId = model
         };
     }
 
@@ -114,45 +135,58 @@ public sealed class AzureChatCompletionsClient(HttpClient http, string endpoint,
         return tools;
     }
 
-    private static Dictionary<string, object?> ToWireMessage(ChatMessage message)
+    private static IEnumerable<Dictionary<string, object?>> ToWireMessages(ChatMessage message)
     {
         var calls = message.Contents.OfType<FunctionCallContent>().ToList();
-        var result = message.Contents.OfType<FunctionResultContent>().FirstOrDefault();
+        var results = message.Contents.OfType<FunctionResultContent>().ToList();
         var text = string.Concat(message.Contents.OfType<TextContent>().Select(t => t.Text));
 
-        if (result is not null)
+        if (calls.Count > 0 || (results.Count == 0 && message.Role != ChatRole.Tool))
         {
-            return new Dictionary<string, object?>
+            var role = message.Role == ChatRole.System ? "system"
+                : message.Role == ChatRole.Assistant || calls.Count > 0 ? "assistant"
+                : "user";
+
+            var wire = new Dictionary<string, object?>
+            {
+                ["role"] = role,
+                ["content"] = string.IsNullOrEmpty(text) ? (calls.Count > 0 ? null : "") : text
+            };
+
+            if (calls.Count > 0)
+            {
+                wire["tool_calls"] = calls.Select(call => new
+                {
+                    id = call.CallId,
+                    type = "function",
+                    function = new
+                    {
+                        name = call.Name,
+                        arguments = SerializeArguments(call.Arguments)
+                    }
+                }).ToList();
+            }
+
+            yield return wire;
+        }
+
+        foreach (var result in results)
+        {
+            yield return new Dictionary<string, object?>
             {
                 ["role"] = "tool",
                 ["tool_call_id"] = result.CallId,
                 ["content"] = result.Result is string s ? s : JsonSerializer.Serialize(result.Result, Json)
             };
         }
+    }
 
-        var wire = new Dictionary<string, object?>
-        {
-            ["role"] = message.Role == ChatRole.System ? "system"
-                : message.Role == ChatRole.Assistant ? "assistant"
-                : "user",
-            ["content"] = string.IsNullOrEmpty(text) ? (calls.Count > 0 ? null : "") : text
-        };
+    private static string SerializeArguments(IDictionary<string, object?>? arguments)
+    {
+        if (arguments is null || arguments.Count == 0)
+            return "{}";
 
-        if (calls.Count > 0)
-        {
-            wire["tool_calls"] = calls.Select(call => new
-            {
-                id = call.CallId,
-                type = "function",
-                function = new
-                {
-                    name = call.Name,
-                    arguments = JsonSerializer.Serialize(call.Arguments ?? new Dictionary<string, object?>(), Json)
-                }
-            }).ToList();
-        }
-
-        return wire;
+        return JsonSerializer.Serialize(arguments, Json);
     }
 
     private static List<AIContent> ReadContents(JsonElement message)

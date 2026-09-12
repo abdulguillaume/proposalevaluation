@@ -5,7 +5,7 @@ namespace ProposalEval.Api;
 
 [ApiController]
 [Route("api/jobs")]
-public sealed class JobsController(ILogger<JobsController> logger, JobAgentService jobs, PreparedPromptService prompts) : ApiControllerBase
+public sealed class JobsController(ILogger<JobsController> logger, JobAgentService jobs, PreparedPromptService prompts, EvaluationService evaluation) : ApiControllerBase
 {
     private readonly ILogger<JobsController> _logger = logger;
 
@@ -171,6 +171,46 @@ public sealed class JobsController(ILogger<JobsController> logger, JobAgentServi
         }
     }
 
+    [HttpPost("{id:int}/summary/accept")]
+    public async Task<IActionResult> AcceptSummary(int id, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Accepting summary for job {JobId}.", id);
+        try
+        {
+            var result = await evaluation.ReviewSummaryAsync(id, true, null, cancellationToken);
+            if (!result.Ok)
+                return Fail(result.Status, result.Error!);
+
+            _logger.LogInformation("Accepted summary {SummaryId} for job {JobId}.", result.Data!.Id, id);
+            return Success(200, result.Data);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to accept summary for job {JobId}.", id);
+            return Fail(500, "Failed to accept summary.");
+        }
+    }
+
+    [HttpPost("{id:int}/summary/reject")]
+    public async Task<IActionResult> RejectSummary(int id, [FromBody] RejectSummaryRequest request, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Rejecting summary for job {JobId}.", id);
+        try
+        {
+            var result = await evaluation.ReviewSummaryAsync(id, false, request.Reason, cancellationToken);
+            if (!result.Ok)
+                return Fail(result.Status, result.Error!);
+
+            _logger.LogInformation("Rejected summary {SummaryId} for job {JobId}.", result.Data!.Id, id);
+            return Success(200, result.Data);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to reject summary for job {JobId}.", id);
+            return Fail(500, "Failed to reject summary.");
+        }
+    }
+
     [HttpPost("{id:int}/scores")]
     public async Task<IActionResult> SaveScores(int id, [FromBody] SaveScoresRequest request, CancellationToken cancellationToken)
     {
@@ -188,6 +228,46 @@ public sealed class JobsController(ILogger<JobsController> logger, JobAgentServi
         {
             _logger.LogError(ex, "Failed to save scores for job {JobId}.", id);
             return Fail(500, "Failed to save scores.");
+        }
+    }
+
+    [HttpPost("{id:int}/scores/accept")]
+    public async Task<IActionResult> AcceptScores(int id, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Accepting scores for job {JobId}.", id);
+        try
+        {
+            var result = await evaluation.ReviewScoresAsync(id, true, null, cancellationToken);
+            if (!result.Ok)
+                return Fail(result.Status, result.Error!);
+
+            _logger.LogInformation("Accepted scores for job {JobId} TWS {Tws}.", id, result.Data!.Tws);
+            return Success(200, result.Data);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to accept scores for job {JobId}.", id);
+            return Fail(500, "Failed to accept scores.");
+        }
+    }
+
+    [HttpPost("{id:int}/scores/reject")]
+    public async Task<IActionResult> RejectScores(int id, [FromBody] RejectSummaryRequest request, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Rejecting scores for job {JobId}.", id);
+        try
+        {
+            var result = await evaluation.ReviewScoresAsync(id, false, request.Reason, cancellationToken);
+            if (!result.Ok)
+                return Fail(result.Status, result.Error!);
+
+            _logger.LogInformation("Rejected scores for job {JobId}.", id);
+            return Success(200, result.Data);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to reject scores for job {JobId}.", id);
+            return Fail(500, "Failed to reject scores.");
         }
     }
 
