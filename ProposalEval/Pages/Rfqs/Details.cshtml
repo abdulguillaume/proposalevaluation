@@ -119,7 +119,7 @@
 
 <div class="card-block">
     <h2 class="h5">Request evaluation</h2>
-    <p>Evaluation does not start until you ask. The summary agent will then read the TOR, scoring strategy, and each vendor’s files from these profiles.</p>
+    <p>Evaluation does not start until you ask. After a run exists, add more vendor profiles and use <strong>Evaluate new vendors</strong> to start their summary jobs. Other vendors are unchanged.</p>
     <ul class="checklist mb-3">
         <li class="@(Model.HasTor ? "present" : "missing")">@(Model.HasTor ? "TOR is loaded" : "TOR is missing")</li>
         <li class="@(Model.HasStrategy ? "present" : "missing")">@(Model.HasStrategy ? "Scoring strategy is loaded" : "Scoring strategy is missing")</li>
@@ -130,9 +130,13 @@
         {
             <button class="btn btn-navy" type="submit">Start evaluation</button>
         }
+        else if (Model.CanEvaluatePending)
+        {
+            <button class="btn btn-navy" type="submit">Evaluate @Model.PendingVendorCount new vendor@(Model.PendingVendorCount == 1 ? "" : "s")</button>
+        }
         else if (Model.LatestRun is not null)
         {
-            <button class="btn btn-navy" type="button" disabled>Evaluation already started</button>
+            <button class="btn btn-navy" type="button" disabled>Every vendor is in this run</button>
         }
         else
         {
@@ -147,6 +151,12 @@
         <div class="d-flex justify-content-between align-items-center mb-2 gap-2">
             <h2 class="h5 mb-0">Jobs</h2>
             <div class="d-flex gap-2">
+                @if (Model.CanEvaluatePending)
+                {
+                    <form method="post" asp-page-handler="Evaluate">
+                        <button class="btn btn-sm btn-navy" type="submit">Evaluate new vendors</button>
+                    </form>
+                }
                 @if (Model.CanRetryFailed)
                 {
                     <form method="post" asp-page-handler="Retry">

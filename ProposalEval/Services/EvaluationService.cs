@@ -22,12 +22,7 @@ public sealed class EvaluationService(AppDbContext db, AgentJobQueue agentJobs)
 
         var latest = rfq.Runs.OrderByDescending(r => r.Id).FirstOrDefault();
         if (latest is not null)
-        {
-            if (latest.Status is RunStatus.Requested or RunStatus.Running)
-                return (true, latest.StatusMessage);
-
-            return (false, "Evaluation already started. Retry a failed job to start a new attempt.");
-        }
+            return await EnqueuePendingVendorsAsync(rfq, latest, cancellationToken);
 
         if (rfq.Documents.All(d => d.Kind != RfqDocumentKind.Tor))
             return (false, "Load the TOR before requesting evaluation.");
@@ -67,6 +62,46 @@ public sealed class EvaluationService(AppDbContext db, AgentJobQueue agentJobs)
             agentJobs.Enqueue(job.Id);
 
         return (true, run.StatusMessage);
+    }
+
+    private async Task<(bool Ok, string Message)> EnqueuePendingVendorsAsync(
+        Rfq rfq,
+        EvaluationRun run,
+        CancellationToken cancellationToken)
+    {
+        var startedIds = run.Jobs
+            .Where(j => j.JobType == JobType.Summarize && j.VendorId is not null)
+            .Select(j => j.VendorId!.Value)
+            .ToHashSet();
+
+        var pending = rfq.Vendors.Where(v => !startedIds.Contains(v.Id)).OrderBy(v => v.Id).ToList();
+        if (pending.Count == 0)
+            return (false, "Every vendor already has a summary job. Retry a failed job to start a new attempt.");
+
+        await DefaultRfqCriteria.EnsureAsync(db, rfq.Id, cancellationToken);
+
+        var now = DateTime.UtcNow;
+        var created = new List<EvaluationJob>();
+        foreach (var vendor in pending)
+        {
+            vendor.Status = VendorStatus.Summarizing;
+            vendor.UpdatedAt = now;
+            var job = CreateJob(rfq.Id, vendor.Id, JobType.Summarize, now);
+            run.Jobs.Add(job);
+            created.Add(job);
+        }
+
+        ApplyRunStatus(run);
+        rfq.Status = RfqStatus.Evaluating;
+        rfq.UpdatedAt = now;
+        await db.SaveChangesAsync(cancellationToken);
+
+        foreach (var job in created)
+            agentJobs.Enqueue(job.Id);
+
+        return (true, created.Count == 1
+            ? AgentStartedMessage
+            : $"{created.Count} new summary jobs queued.");
     }
 
     public async Task<(bool Ok, string Message)> RetryFailedAsync(int rfqId, int? jobId, CancellationToken cancellationToken = default)

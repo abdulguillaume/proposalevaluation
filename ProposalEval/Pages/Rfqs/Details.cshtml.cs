@@ -16,6 +16,10 @@ public class DetailsModel(AppDbContext db, IFileStore files, EvaluationService e
     public bool HasTor => Rfq.Documents.Any(d => d.Kind == RfqDocumentKind.Tor);
     public bool HasStrategy => Rfq.Documents.Any(d => d.Kind == RfqDocumentKind.ScoringStrategy);
     public bool CanEvaluate => HasTor && HasStrategy && Rfq.Vendors.Count > 0 && LatestRun is null;
+    public int PendingVendorCount => LatestRun is null
+        ? 0
+        : Rfq.Vendors.Count(v => LatestRun.Jobs.All(j => j.VendorId != v.Id || j.JobType != JobType.Summarize));
+    public bool CanEvaluatePending => HasTor && HasStrategy && PendingVendorCount > 0;
     public bool CanRetryFailed => LatestRun is not null && LatestRun.Jobs.Any(j => EvaluationService.IsRetryable(LatestRun, j));
 
     public async Task<IActionResult> OnGetAsync(int id)
